@@ -1,7 +1,5 @@
 name: JoeAlerts capture-only (NO BROKER / NO ORDERS)
 on:
-  schedule:
-    - cron: '2-57/5 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
