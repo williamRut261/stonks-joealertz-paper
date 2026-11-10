@@ -1,0 +1,47 @@
+name: JoeAlerts capture-only (NO BROKER / NO ORDERS)
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: joealertz-public-capture
+  cancel-in-progress: false
+jobs:
+  capture:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Offline tests (no credentials)
+        run: python -m unittest discover -s tests -q
+      - name: Restore public-safe state
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python restore_state.py
+      - name: Capture new public X post IDs and classifications
+        id: capture
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "$X_BEARER_TOKEN" ]]; then
+            echo '::notice::X_BEARER_TOKEN missing; capture disabled; no orders.'
+            exit 0
+          fi
+          python capture.py --state runtime/state.json
+          echo 'completed=true' >> "$GITHUB_OUTPUT"
+      - name: Save public-safe state artifact
+        if: steps.capture.outputs.completed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: joealertz-public-capture-state
+          path: runtime/state.json
+          if-no-files-found: error
+          retention-days: 3
